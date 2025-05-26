@@ -10,34 +10,67 @@ export async function GET(request: NextRequest) {
   if (code) {
     const cookieStore = cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    
+    try {
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-    if (error) {
-      // Handle error (e.g., redirect to an error page or show a message)
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
-
-    // Check if the user is an admin
-    const user = data.session?.user;
-    if (user) {
-      const { data: userData, error: userError } = await supabase
-        .from('users') // Assuming you have a 'users' table
-        .select('role') // Assuming 'role' is a field in your users table
-        .eq('id', user.id)
-        .single();
-
-      if (userError || !userData) {
-        // Handle error (e.g., redirect to an error page or show a message)
-        return NextResponse.redirect(new URL("/login", request.url));
+      if (error) {
+        console.error("Auth callback error:", error);
+        return NextResponse.redirect(new URL("/login?error=auth_failed", request.url));
       }
 
-      // Redirect based on user role
-      if (userData.role === 'admin') {
-        return NextResponse.redirect(new URL("/admin", request.url)); // Redirect to admin dashboard
+      // Check if the user is an admin
+      const user = data.session?.user;
+      if (user) {
+        try {
+          // First, create or update the user profile
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .upsert({
+              user_id: user.id,
+              first_name: user.user_metadata?.full_name?.split(' ')[0] || user.user_metadata?.name || 'User',
+              last_name: user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+              email: user.email || '',
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id'
+            });
+
+          if (profileError) {
+            console.error("Error creating/updating profile:", profileError);
+          }
+
+          // Check if user is admin
+          const { data: adminData, error: adminError } = await supabase
+            .from('admin_users')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+
+          if (!adminError && adminData) {
+            // User is admin, redirect to admin dashboard
+            const response = NextResponse.redirect(new URL("/admin", request.url));
+            response.cookies.set("isAdmin", "true", {
+              httpOnly: true,
+              secure: process.env.NODE_ENV === "production",
+              maxAge: 60 * 60 * 24, // 1 day
+              path: "/",
+            });
+            return response;
+          }
+        } catch (error) {
+          console.error("Error checking admin status:", error);
+        }
       }
+
+      // Regular user, redirect to dashboard
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    } catch (error) {
+      console.error("Session exchange error:", error);
+      return NextResponse.redirect(new URL("/login?error=session_failed", request.url));
     }
   }
 
-  // Default redirect if no code or user is found
-  return NextResponse.redirect(new URL("/dashboard", request.url));
+  // No code provided, redirect to login
+  return NextResponse.redirect(new URL("/login?error=no_code", request.url));
 }

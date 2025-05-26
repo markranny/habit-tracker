@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { serverSignUp } from "@/app/actions/auth-actions"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
+import { supabase, isSupabaseConfigured } from "@/lib/supabase"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -27,6 +28,32 @@ export default function RegisterPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
     setFormData((prev) => ({ ...prev, [id]: value }))
+  }
+
+  const handleGoogleSignUp = async () => {
+    if (!isSupabaseConfigured()) {
+      setError("Google sign-up requires Supabase configuration.")
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      })
+
+      if (error) throw error
+    } catch (error: any) {
+      console.error("Google sign-up failed:", error)
+      setError(error.message || "Failed to sign up with Google")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,6 +74,12 @@ export default function RegisterPage() {
     setIsLoading(true)
 
     try {
+      if (!isSupabaseConfigured()) {
+        // Demo mode - just redirect to login
+        router.push("/login?registered=true")
+        return
+      }
+
       const { user, error } = await serverSignUp(
         formData.email,
         formData.password,
@@ -57,7 +90,7 @@ export default function RegisterPage() {
       if (error) throw error
 
       if (user) {
-        // Redirect to login page
+        // Show success message and redirect
         router.push("/login?registered=true")
       }
     } catch (error: any) {
@@ -93,6 +126,15 @@ export default function RegisterPage() {
         </div>
 
         <h2 className="text-2xl font-bold text-center mb-6">Create an account</h2>
+
+        {!isSupabaseConfigured() && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Supabase is not configured. Registration will work in demo mode.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {error && (
           <Alert variant="destructive" className="mb-4">
@@ -186,10 +228,8 @@ export default function RegisterPage() {
             <Button
               variant="outline"
               className="w-full flex items-center justify-center gap-2 border-gray-300 hover:bg-gray-50"
-              onClick={() => {
-                // Handle Google sign-in logic here
-                console.log("Google sign-in clicked")
-              }}
+              onClick={handleGoogleSignUp}
+              disabled={isLoading || !isSupabaseConfigured()}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="24px" height="24px">
                 <path
@@ -209,7 +249,7 @@ export default function RegisterPage() {
                   d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"
                 />
               </svg>
-              Sign in with Google
+              Sign up with Google
             </Button>
           </div>
         </div>
