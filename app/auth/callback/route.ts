@@ -1,38 +1,43 @@
-// app/auth/callback/route.ts
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 export async function GET(request: NextRequest) {
-  const requestUrl = new URL(request.url)
-  const code = requestUrl.searchParams.get('code')
-  const origin = requestUrl.origin
-
-  console.log('🚀 Auth callback route hit with code:', code ? 'present' : 'missing')
+  const requestUrl = new URL(request.url);
+  const code = requestUrl.searchParams.get("code");
 
   if (code) {
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
-    
-    try {
-      const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-      
-      if (error) {
-        console.error('Error exchanging code for session:', error)
-        return NextResponse.redirect(`${origin}/login?error=auth_callback_error`)
+    const cookieStore = cookies();
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (error) {
+      // Handle error (e.g., redirect to an error page or show a message)
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    // Check if the user is an admin
+    const user = data.session?.user;
+    if (user) {
+      const { data: userData, error: userError } = await supabase
+        .from('users') // Assuming you have a 'users' table
+        .select('role') // Assuming 'role' is a field in your users table
+        .eq('id', user.id)
+        .single();
+
+      if (userError || !userData) {
+        // Handle error (e.g., redirect to an error page or show a message)
+        return NextResponse.redirect(new URL("/login", request.url));
       }
 
-      console.log('Successfully exchanged code for session:', data.session?.user?.email)
-      
-      // Redirect to dashboard on successful authentication
-      return NextResponse.redirect(`${origin}/dashboard`)
-    } catch (error) {
-      console.error('Unexpected error in auth callback:', error)
-      return NextResponse.redirect(`${origin}/login?error=unexpected_error`)
+      // Redirect based on user role
+      if (userData.role === 'admin') {
+        return NextResponse.redirect(new URL("/admin", request.url)); // Redirect to admin dashboard
+      }
     }
   }
 
-  // No code parameter, redirect to login with error
-  return NextResponse.redirect(`${origin}/login?error=no_code`)
+  // Default redirect if no code or user is found
+  return NextResponse.redirect(new URL("/dashboard", request.url));
 }

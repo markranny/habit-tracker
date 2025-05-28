@@ -1,9 +1,12 @@
 "use server"
 
-import { supabaseAdmin } from "@/lib/supabase"
+import { createSupabaseAdminClient } from "@/lib/supabase"
 
 export async function serverSignUp(email: string, password: string, firstName: string, lastName: string) {
   try {
+    // Create admin client for server-side operations
+    const supabaseAdmin = createSupabaseAdminClient()
+    
     // Create user with admin privileges to bypass RLS
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
@@ -16,7 +19,12 @@ export async function serverSignUp(email: string, password: string, firstName: s
     })
 
     if (error) {
+      console.error("Error creating user:", error)
       return { user: null, error }
+    }
+
+    if (!data.user) {
+      return { user: null, error: { message: "Failed to create user" } }
     }
 
     // Create profile for the user
@@ -29,7 +37,7 @@ export async function serverSignUp(email: string, password: string, firstName: s
 
     if (profileError) {
       console.error("Error creating profile:", profileError)
-      return { user: null, error: profileError }
+      // Continue even if profile creation fails
     }
 
     // Create preferences for the user
@@ -46,12 +54,15 @@ export async function serverSignUp(email: string, password: string, firstName: s
 
     if (preferencesError) {
       console.error("Error creating preferences:", preferencesError)
-      return { user: null, error: preferencesError }
+      // Continue even if preferences creation fails
     }
 
     return { user: data.user, error: null }
   } catch (error) {
     console.error("Error in server signup:", error)
-    return { user: null, error }
+    return { 
+      user: null, 
+      error: error instanceof Error ? error : { message: "Unknown error occurred" } 
+    }
   }
 }

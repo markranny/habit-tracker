@@ -1,46 +1,46 @@
-// lib/supabase.ts - Updated version
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+// lib/supabase.ts
 import { createClient } from '@supabase/supabase-js'
 
-// Default fallback values for development
-const FALLBACK_URL = "https://your-project.supabase.co"
-const FALLBACK_KEY = "your-anon-key"
-
-// Get environment variables with fallbacks
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || FALLBACK_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || FALLBACK_KEY
+// Get environment variables
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 // Function to check if Supabase is properly configured
 export function isSupabaseConfigured(): boolean {
-  return (
-    supabaseUrl !== FALLBACK_URL && 
-    supabaseAnonKey !== FALLBACK_KEY && 
-    supabaseUrl !== "" && 
-    supabaseAnonKey !== ""
+  return !!(
+    supabaseUrl && 
+    supabaseAnonKey && 
+    supabaseUrl.startsWith('https://') &&
+    supabaseAnonKey.length > 20
   )
 }
 
 // Create the main Supabase client for client-side operations
-export const supabase = createClientComponentClient({
-  supabaseUrl,
-  supabaseKey: supabaseAnonKey,
-})
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // For server-side operations, create a standard client
 export const createSupabaseClient = () => {
-  if (!isSupabaseConfigured()) {
-    throw new Error('Supabase is not configured. Please check your environment variables.')
+  return createClient(supabaseUrl, supabaseAnonKey)
+}
+
+// Create admin client only when needed (server-side)
+export const createSupabaseAdminClient = () => {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  
+  if (!serviceRoleKey) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required for admin operations')
   }
   
-  return createClient(supabaseUrl, supabaseAnonKey)
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  })
 }
 
 // Google OAuth sign in function
 export async function signInWithGoogle() {
-  if (!isSupabaseConfigured()) {
-    throw new Error('Supabase is not configured')
-  }
-
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {

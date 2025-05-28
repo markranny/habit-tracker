@@ -1,20 +1,33 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useCallback, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { serverSignUp } from "@/app/actions/auth-actions"
+import { comprehensiveEmailValidation } from "@/app/actions/email-validation-actions"
+import { sendEmailVerificationPin } from "@/app/actions/email-verification-actions"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, CheckCircle, Mail } from "lucide-react"
+import { supabase } from "@/lib/supabase"
+import PinVerification from "@/components/PinVerification"
 
 export default function RegisterPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [step, setStep] = useState<'registration' | 'email-verification' | 'completing'>('registration')
+  const [emailValidation, setEmailValidation] = useState<{
+    isValidating: boolean
+    isValid: boolean
+    isGmail: boolean
+    existsInDatabase: boolean
+    suggestion?: string
+    error?: string
+  } | null>(null)
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -27,6 +40,64 @@ export default function RegisterPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
     setFormData((prev) => ({ ...prev, [id]: value }))
+  }
+
+  // Debounced email validation
+  const validateEmail = useCallback(async (email: string) => {
+    if (!email || email.length < 3) {
+      setEmailValidation(null)
+      return
+    }
+
+    setEmailValidation(prev => ({ ...prev, isValidating: true } as any))
+
+    try {
+      const result = await comprehensiveEmailValidation(email)
+      setEmailValidation({
+        isValidating: false,
+        ...result
+      })
+    } catch (error) {
+      setEmailValidation({
+        isValidating: false,
+        isValid: false,
+        isGmail: false,
+        existsInDatabase: false,
+        error: "Failed to validate email"
+      })
+    }
+  }, [])
+
+  // Debounce email validation
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (formData.email) {
+        validateEmail(formData.email)
+      }
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
+  }, [formData.email, validateEmail])
+
+  const handleGoogleSignUp = async () => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      })
+
+      if (error) throw error
+    } catch (error: any) {
+      console.error("Google sign-up failed:", error)
+      setError(error.message || "Failed to sign up with Google")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,9 +115,54 @@ export default function RegisterPage() {
       return
     }
 
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      setError("First name and last name are required")
+      return
+    }
+
+    if (!formData.email.trim()) {
+      setError("Email is required")
+      return
+    }
+
+    // Check email validation results
+    if (emailValidation && !emailValidation.isValid) {
+      setError(emailValidation.error || "Please enter a valid email address")
+      return
+    }
+
+    if (emailValidation && emailValidation.existsInDatabase) {
+      setError("An account with this email already exists. Please sign in instead.")
+      return
+    }
+
     setIsLoading(true)
 
     try {
+      // Send verification PIN first
+      const pinResult = await sendEmailVerificationPin(formData.email, formData.firstName)
+      
+      if (!pinResult.success) {
+        throw new Error(pinResult.error || "Failed to send verification code")
+      }
+
+      // Move to email verification step
+      setStep('email-verification')
+    } catch (error: any) {
+      console.error("Registration failed:", error)
+      setError(error.message || "Failed to send verification code. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Handle email verification success
+  const handleEmailVerified = async () => {
+    setStep('completing')
+    setError(null)
+
+    try {
+      // Now create the actual user account
       const { user, error } = await serverSignUp(
         formData.email,
         formData.password,
@@ -57,17 +173,58 @@ export default function RegisterPage() {
       if (error) throw error
 
       if (user) {
-        // Redirect to login page
-        router.push("/login?registered=true")
+        // Show success message and redirect
+        router.push("/login?registered=true&verified=true")
       }
     } catch (error: any) {
-      console.error("Registration failed:", error)
+      console.error("Account creation failed:", error)
       setError(error.message || "Failed to create account. Please try again.")
-    } finally {
-      setIsLoading(false)
+      setStep('registration') // Go back to registration form
     }
   }
 
+  // Handle cancel verification
+  const handleCancelVerification = () => {
+    setStep('registration')
+    setError(null)
+  }
+
+  // Render PIN verification step
+  if (step === 'email-verification') {
+    return (
+      <div className="flex min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800">
+        <div className="m-auto">
+          <PinVerification
+            email={formData.email}
+            firstName={formData.firstName}
+            onVerificationSuccess={handleEmailVerified}
+            onCancel={handleCancelVerification}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // Render completing step
+  if (step === 'completing') {
+    return (
+      <div className="flex min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800">
+        <div className="m-auto w-full max-w-md p-8 bg-white rounded-lg shadow-xl text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <h2 className="text-xl font-semibold mb-2">Creating Your Account</h2>
+          <p className="text-gray-600">Please wait while we set up your account...</p>
+          {error && (
+            <Alert variant="destructive" className="mt-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Render registration form
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800">
       <div className="m-auto w-full max-w-md p-8 bg-white rounded-lg shadow-xl">
@@ -92,7 +249,10 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <h2 className="text-2xl font-bold text-center mb-6">Create an account</h2>
+        <h2 className="text-2xl font-bold text-center mb-2">Create an account</h2>
+        <p className="text-center text-sm text-gray-600 mb-6">
+          We'll send a verification code to your email
+        </p>
 
         {error && (
           <Alert variant="destructive" className="mb-4">
@@ -112,6 +272,7 @@ export default function RegisterPage() {
                 value={formData.firstName}
                 onChange={handleInputChange}
                 required
+                disabled={isLoading}
               />
             </div>
 
@@ -124,25 +285,98 @@ export default function RegisterPage() {
                 value={formData.lastName}
                 onChange={handleInputChange}
                 required
+                disabled={isLoading}
               />
             </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="john@example.com"
-              value={formData.email}
-              onChange={handleInputChange}
-              required
-            />
+            <div className="relative">
+              <Input
+                id="email"
+                type="email"
+                placeholder="john@example.com"
+                value={formData.email}
+                onChange={handleInputChange}
+                required
+                disabled={isLoading}
+                className={
+                  emailValidation?.isValid === false 
+                    ? "border-red-500 focus:border-red-500" 
+                    : emailValidation?.isValid === true 
+                    ? "border-green-500 focus:border-green-500" 
+                    : ""
+                }
+              />
+              
+              {/* Email validation indicator */}
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                {emailValidation?.isValidating && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500"></div>
+                )}
+                {emailValidation?.isValid === true && !emailValidation.existsInDatabase && (
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                )}
+                {emailValidation?.isValid === false && (
+                  <AlertCircle className="h-4 w-4 text-red-500" />
+                )}
+                {emailValidation?.existsInDatabase && (
+                  <AlertCircle className="h-4 w-4 text-yellow-500" />
+                )}
+              </div>
+            </div>
+            
+            {/* Email validation messages */}
+            {emailValidation && (
+              <div className="space-y-1">
+                {emailValidation.isGmail && (
+                  <div className="flex items-center gap-1 text-sm text-blue-600">
+                    <Mail className="h-3 w-3" />
+                    <span>Gmail address detected - verification required</span>
+                  </div>
+                )}
+                
+                {emailValidation.error && (
+                  <p className="text-sm text-red-600">{emailValidation.error}</p>
+                )}
+                
+                {emailValidation.existsInDatabase && (
+                  <p className="text-sm text-yellow-600">
+                    This email is already registered. 
+                    <Link href="/login" className="text-blue-600 hover:underline ml-1">
+                      Sign in instead?
+                    </Link>
+                  </p>
+                )}
+                
+                {emailValidation.suggestion && (
+                  <p className="text-sm text-gray-600">
+                    Did you mean: 
+                    <button
+                      type="button"
+                      className="text-blue-600 hover:underline ml-1"
+                      onClick={() => setFormData(prev => ({ ...prev, email: emailValidation.suggestion! }))}
+                    >
+                      {emailValidation.suggestion}
+                    </button>?
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" value={formData.password} onChange={handleInputChange} required />
+            <Input 
+              id="password" 
+              type="password" 
+              value={formData.password} 
+              onChange={handleInputChange} 
+              required 
+              disabled={isLoading}
+              minLength={6}
+            />
           </div>
 
           <div className="space-y-2">
@@ -153,15 +387,17 @@ export default function RegisterPage() {
               value={formData.confirmPassword}
               onChange={handleInputChange}
               required
+              disabled={isLoading}
+              minLength={6}
             />
           </div>
 
           <Button
             type="submit"
             className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
-            disabled={isLoading}
+            disabled={isLoading || (emailValidation && (!emailValidation.isValid || emailValidation.existsInDatabase))}
           >
-            {isLoading ? "Creating account..." : "Register"}
+            {isLoading ? "Sending verification..." : "Send Verification Code"}
           </Button>
         </form>
 
@@ -184,12 +420,11 @@ export default function RegisterPage() {
 
           <div className="mt-4">
             <Button
+              type="button"
               variant="outline"
               className="w-full flex items-center justify-center gap-2 border-gray-300 hover:bg-gray-50"
-              onClick={() => {
-                // Handle Google sign-in logic here
-                console.log("Google sign-in clicked")
-              }}
+              onClick={handleGoogleSignUp}
+              disabled={isLoading}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="24px" height="24px">
                 <path
@@ -209,7 +444,7 @@ export default function RegisterPage() {
                   d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"
                 />
               </svg>
-              Sign in with Google
+              Sign up with Google
             </Button>
           </div>
         </div>
