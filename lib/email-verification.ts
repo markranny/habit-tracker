@@ -1,4 +1,4 @@
-// lib/email-verification.ts
+
 export interface PinVerificationResult {
   success: boolean
   error?: string
@@ -15,15 +15,13 @@ export interface EmailVerificationData {
   createdAt: Date
 }
 
-// Generate a 6-digit PIN
 export function generatePin(): string {
   return Math.floor(100000 + Math.random() * 900000).toString()
 }
 
-// Create email verification entry
 export function createEmailVerification(email: string): EmailVerificationData {
   const pin = generatePin()
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes from now
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000) 
   
   return {
     email: email.toLowerCase(),
@@ -36,17 +34,14 @@ export function createEmailVerification(email: string): EmailVerificationData {
   }
 }
 
-// Validate PIN format
 export function isValidPinFormat(pin: string): boolean {
   return /^\d{6}$/.test(pin)
 }
 
-// Check if verification has expired
 export function isVerificationExpired(verification: EmailVerificationData): boolean {
   return new Date() > verification.expiresAt
 }
 
-// HTML email template for PIN
 export function createPinEmailHtml(pin: string, userFirstName?: string): string {
   return `
     <!DOCTYPE html>
@@ -147,7 +142,6 @@ export function createPinEmailHtml(pin: string, userFirstName?: string): string 
   `
 }
 
-// Plain text version of the email
 export function createPinEmailText(pin: string, userFirstName?: string): string {
   return `
 Learning Habit Tracker - Email Verification

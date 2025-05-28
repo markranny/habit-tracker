@@ -5,10 +5,8 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { isSupabaseConfigured } from "@/lib/supabase"
 
-// Function to get all users
 export async function getUsers() {
   try {
-    // For demo mode or when Supabase is not configured
     if (!isSupabaseConfigured()) {
       return {
         users: [
@@ -47,10 +45,152 @@ export async function getUsers() {
   }
 }
 
-// Function to get user progress
+export async function getUserHistory() {
+  try {
+    
+    if (!isSupabaseConfigured()) {
+      return {
+        history: [
+          {
+            id: "1",
+            user_id: "1",
+            action: "login",
+            resource_type: "session",
+            resource_id: "1",
+            details: { login_method: "email_password" },
+            ip_address: "192.168.1.1",
+            user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+            profiles: {
+              first_name: "John",
+              last_name: "Doe",
+              email: "john@example.com",
+            },
+          },
+          {
+            id: "2",
+            user_id: "1",
+            action: "material_view",
+            resource_type: "learning_material",
+            resource_id: "1",
+            details: { duration_seconds: 180 },
+            ip_address: "192.168.1.1",
+            user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+            profiles: {
+              first_name: "John",
+              last_name: "Doe",
+              email: "john@example.com",
+            },
+            learning_materials: {
+              title: "Introduction to JavaScript",
+            },
+          },
+          {
+            id: "3",
+            user_id: "2",
+            action: "register",
+            resource_type: "user",
+            resource_id: "2",
+            details: { registration_method: "email" },
+            ip_address: "192.168.1.2",
+            user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+            profiles: {
+              first_name: "Jane",
+              last_name: "Smith",
+              email: "jane@example.com",
+            },
+          },
+          {
+            id: "4",
+            user_id: "1",
+            action: "progress_update",
+            resource_type: "progress",
+            resource_id: "1",
+            details: { old_progress: 50, new_progress: 75 },
+            ip_address: "192.168.1.1",
+            user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            created_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+            profiles: {
+              first_name: "John",
+              last_name: "Doe",
+              email: "john@example.com",
+            },
+          },
+          {
+            id: "5",
+            user_id: "2",
+            action: "goal_create",
+            resource_type: "goal",
+            resource_id: "1",
+            details: { goal_type: "daily_learning", target_minutes: 60 },
+            ip_address: "192.168.1.2",
+            user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+            profiles: {
+              first_name: "Jane",
+              last_name: "Smith",
+              email: "jane@example.com",
+            },
+          },
+          {
+            id: "6",
+            user_id: "1",
+            action: "profile_update",
+            resource_type: "user",
+            resource_id: "1",
+            details: { updated_fields: ["bio", "avatar_url"] },
+            ip_address: "192.168.1.1",
+            user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            created_at: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
+            profiles: {
+              first_name: "John",
+              last_name: "Doe",
+              email: "john@example.com",
+            },
+          },
+        ],
+        error: null,
+      }
+    }
+
+    const { error: tableCheckError } = await supabase.from("user_history").select("id").limit(1)
+
+    if (tableCheckError) {
+      console.error("Error checking user_history table:", tableCheckError)
+      return { history: [], error: tableCheckError }
+    }
+
+    const { data: historyData, error: historyError } = await supabase
+      .from("user_history")
+      .select(`
+        *,
+        profiles:user_id (
+          first_name,
+          last_name,
+          email
+        ),
+        learning_materials:resource_id (
+          title
+        )
+      `)
+      .order('created_at', { ascending: false })
+
+    if (historyError) {
+      console.error("Error getting user history:", historyError)
+      return { history: [], error: historyError }
+    }
+
+    return { history: historyData || [], error: null }
+  } catch (error) {
+    console.error("Error in getUserHistory:", error)
+    return { history: [], error }
+  }
+}
+
 export async function getUserProgress() {
   try {
-    // For demo mode or when Supabase is not configured
     if (!isSupabaseConfigured()) {
       return {
         progress: [
@@ -103,7 +243,6 @@ export async function getUserProgress() {
       }
     }
 
-    // Check if user_progress table exists
     const { error: tableCheckError } = await supabase.from("user_progress").select("id").limit(1)
 
     if (tableCheckError) {
@@ -111,7 +250,6 @@ export async function getUserProgress() {
       return { progress: [], error: tableCheckError }
     }
 
-    // Get all progress records
     const { data: progressData, error: progressError } = await supabase.from("user_progress").select("*")
 
     if (progressError) {
@@ -119,18 +257,14 @@ export async function getUserProgress() {
       return { progress: [], error: progressError }
     }
 
-    // If no progress data, return empty array
     if (!progressData || progressData.length === 0) {
       return { progress: [], error: null }
     }
 
-    // Get all user IDs from progress data
     const userIds = [...new Set(progressData.map((item) => item.user_id))]
 
-    // Get all material IDs from progress data
     const materialIds = [...new Set(progressData.map((item) => item.material_id))]
 
-    // Get user profiles for these IDs
     const { data: profilesData, error: profilesError } = await supabase
       .from("profiles")
       .select("*")
@@ -138,10 +272,8 @@ export async function getUserProgress() {
 
     if (profilesError) {
       console.error("Error getting user profiles:", profilesError)
-      // Continue without profiles
     }
 
-    // Get learning materials for these IDs
     const { data: materialsData, error: materialsError } = await supabase
       .from("learning_materials")
       .select("*")
@@ -149,22 +281,18 @@ export async function getUserProgress() {
 
     if (materialsError) {
       console.error("Error getting learning materials:", materialsError)
-      // Continue without materials
     }
 
-    // Create a map of user_id to profile data
     const profilesMap = (profilesData || []).reduce((map, profile) => {
       map[profile.user_id] = profile
       return map
     }, {})
 
-    // Create a map of material_id to material data
     const materialsMap = (materialsData || []).reduce((map, material) => {
       map[material.id] = material
       return map
     }, {})
 
-    // Combine the data
     const combinedProgress = progressData.map((progress) => ({
       ...progress,
       profiles: profilesMap[progress.user_id] || null,
@@ -178,10 +306,8 @@ export async function getUserProgress() {
   }
 }
 
-// Function to get learning materials
 export async function getLearningMaterials() {
   try {
-    // For demo mode or when Supabase is not configured
     if (!isSupabaseConfigured()) {
       return {
         materials: [
@@ -234,7 +360,6 @@ export async function getLearningMaterials() {
   }
 }
 
-// Function to create a learning material
 export async function createLearningMaterial(material: {
   title: string
   description: string
@@ -267,7 +392,6 @@ export async function createLearningMaterial(material: {
   }
 }
 
-// Function to update a learning material
 export async function updateLearningMaterial(
   id: string,
   material: {
@@ -304,7 +428,6 @@ export async function updateLearningMaterial(
   }
 }
 
-// Function to update user progress
 export async function updateUserProgress(
   id: string,
   progress: {
@@ -319,7 +442,6 @@ export async function updateUserProgress(
       updated_at: new Date().toISOString(),
     }
 
-    // If completed is true, set completed_at
     if (progress.completed) {
       updateData.completed_at = new Date().toISOString()
     } else {
@@ -340,7 +462,6 @@ export async function updateUserProgress(
   }
 }
 
-// Function to delete a learning material
 export async function deleteLearningMaterial(id: string) {
   try {
     const { error } = await supabase.from("learning_materials").delete().eq("id", id)
@@ -357,10 +478,8 @@ export async function deleteLearningMaterial(id: string) {
   }
 }
 
-// Function to delete a user
 export async function deleteUser(userId: string) {
   try {
-    // Delete the user's profile
     const { error: profileError } = await supabase.from("profiles").delete().eq("user_id", userId)
 
     if (profileError) {
@@ -375,16 +494,13 @@ export async function deleteUser(userId: string) {
   }
 }
 
-// Function to check if user is admin
 export async function isUserAdmin(): Promise<boolean> {
   try {
-    // Check if admin session cookie exists
     const adminSession = cookies().get("admin_session")
     if (adminSession) {
       return true
     }
 
-    // If no admin session, check if the user is in the admin_users table
     const { data: authUser } = await supabase.auth.getUser()
     if (!authUser.user) {
       return false
@@ -403,24 +519,20 @@ export async function isUserAdmin(): Promise<boolean> {
   }
 }
 
-// Function to log in as admin
 export async function loginAsAdmin() {
-  // Set a cookie to indicate admin status
   cookies().set("isAdmin", "true", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    maxAge: 60 * 60 * 24, // 1 day
+    maxAge: 60 * 60 * 24,
     path: "/",
   })
 
-  // Redirect to admin dashboard
   redirect("/admin")
 }
 
 export async function checkAdminStatus() {
-  // If Supabase is not configured, check localStorage on the client side
   if (!isSupabaseConfigured()) {
-    return { isAdmin: true } // For demo purposes
+    return { isAdmin: true }
   }
 
   const isAdmin = cookies().get("isAdmin")?.value === "true"

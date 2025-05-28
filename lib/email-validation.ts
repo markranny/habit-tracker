@@ -1,4 +1,4 @@
-// lib/email-validation.ts
+
 export interface EmailValidationResult {
   isValid: boolean
   isGmail: boolean
@@ -7,13 +7,11 @@ export interface EmailValidationResult {
   suggestion?: string
 }
 
-// Basic email format validation
 export function validateEmailFormat(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   return emailRegex.test(email)
 }
 
-// Check if email is a Gmail address
 export function isGmailAddress(email: string): boolean {
   const gmailDomains = [
     'gmail.com',
@@ -24,14 +22,12 @@ export function isGmailAddress(email: string): boolean {
   return gmailDomains.includes(domain)
 }
 
-// Enhanced email validation with Gmail-specific checks
 export function validateGmailAddress(email: string): EmailValidationResult {
   const result: EmailValidationResult = {
     isValid: false,
     isGmail: false
   }
 
-  // Basic format check
   if (!validateEmailFormat(email)) {
     result.error = "Invalid email format"
     return result
@@ -41,10 +37,8 @@ export function validateGmailAddress(email: string): EmailValidationResult {
   result.isGmail = isGmailAddress(email)
 
   if (result.isGmail) {
-    // Gmail-specific validations
     const [localPart, domain] = email.toLowerCase().split('@')
     
-    // Check for common Gmail rules
     if (localPart.length < 1) {
       result.isValid = false
       result.error = "Gmail username cannot be empty"
@@ -57,7 +51,6 @@ export function validateGmailAddress(email: string): EmailValidationResult {
       return result
     }
 
-    // Check for valid characters in Gmail
     const validGmailRegex = /^[a-z0-9.]+$/
     if (!validGmailRegex.test(localPart)) {
       result.isValid = false
@@ -65,14 +58,12 @@ export function validateGmailAddress(email: string): EmailValidationResult {
       return result
     }
 
-    // Check for consecutive periods
     if (localPart.includes('..')) {
       result.isValid = false
       result.error = "Gmail addresses cannot have consecutive periods"
       return result
     }
 
-    // Check if starts or ends with period
     if (localPart.startsWith('.') || localPart.endsWith('.')) {
       result.isValid = false
       result.error = "Gmail addresses cannot start or end with a period"
@@ -83,7 +74,6 @@ export function validateGmailAddress(email: string): EmailValidationResult {
   return result
 }
 
-// Server-side email validation (more comprehensive)
 export async function serverValidateEmail(email: string): Promise<EmailValidationResult> {
   const result = validateGmailAddress(email)
   
@@ -92,22 +82,17 @@ export async function serverValidateEmail(email: string): Promise<EmailValidatio
   }
 
   try {
-    // For Gmail addresses, we can do additional checks
     if (result.isGmail) {
       const [localPart] = email.toLowerCase().split('@')
       
-      // Remove dots from Gmail address (Gmail ignores dots)
       const normalizedLocal = localPart.replace(/\./g, '')
       
-      // Check if the normalized version looks suspicious
       if (normalizedLocal.length < 3) {
         result.error = "Gmail address appears to be too short"
         result.isValid = false
         return result
       }
 
-      // You could add more sophisticated checks here
-      // For example, checking against known spam patterns
     }
 
     result.exists = true
@@ -118,7 +103,6 @@ export async function serverValidateEmail(email: string): Promise<EmailValidatio
   }
 }
 
-// Suggest corrections for common email typos
 export function suggestEmailCorrection(email: string): string | null {
   const commonTypos = {
     'gamil.com': 'gmail.com',

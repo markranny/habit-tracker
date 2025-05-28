@@ -42,7 +42,6 @@ export default function RegisterPage() {
     setFormData((prev) => ({ ...prev, [id]: value }))
   }
 
-  // Debounced email validation
   const validateEmail = useCallback(async (email: string) => {
     if (!email || email.length < 3) {
       setEmailValidation(null)
@@ -68,7 +67,6 @@ export default function RegisterPage() {
     }
   }, [])
 
-  // Debounce email validation
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (formData.email) {
@@ -104,7 +102,6 @@ export default function RegisterPage() {
     e.preventDefault()
     setError(null)
 
-    // Validate form
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match")
       return
@@ -125,7 +122,6 @@ export default function RegisterPage() {
       return
     }
 
-    // Check email validation results
     if (emailValidation && !emailValidation.isValid) {
       setError(emailValidation.error || "Please enter a valid email address")
       return
@@ -139,14 +135,12 @@ export default function RegisterPage() {
     setIsLoading(true)
 
     try {
-      // Send verification PIN first
       const pinResult = await sendEmailVerificationPin(formData.email, formData.firstName)
       
       if (!pinResult.success) {
         throw new Error(pinResult.error || "Failed to send verification code")
       }
 
-      // Move to email verification step
       setStep('email-verification')
     } catch (error: any) {
       console.error("Registration failed:", error)
@@ -156,13 +150,11 @@ export default function RegisterPage() {
     }
   }
 
-  // Handle email verification success
   const handleEmailVerified = async () => {
     setStep('completing')
     setError(null)
 
     try {
-      // Now create the actual user account
       const { user, error } = await serverSignUp(
         formData.email,
         formData.password,
@@ -173,23 +165,20 @@ export default function RegisterPage() {
       if (error) throw error
 
       if (user) {
-        // Show success message and redirect
         router.push("/login?registered=true&verified=true")
       }
     } catch (error: any) {
       console.error("Account creation failed:", error)
       setError(error.message || "Failed to create account. Please try again.")
-      setStep('registration') // Go back to registration form
+      setStep('registration') 
     }
   }
 
-  // Handle cancel verification
   const handleCancelVerification = () => {
     setStep('registration')
     setError(null)
   }
 
-  // Render PIN verification step
   if (step === 'email-verification') {
     return (
       <div className="flex min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800">
@@ -205,7 +194,6 @@ export default function RegisterPage() {
     )
   }
 
-  // Render completing step
   if (step === 'completing') {
     return (
       <div className="flex min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800">
@@ -224,7 +212,6 @@ export default function RegisterPage() {
     )
   }
 
-  // Render registration form
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800">
       <div className="m-auto w-full max-w-md p-8 bg-white rounded-lg shadow-xl">

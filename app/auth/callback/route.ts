@@ -13,31 +13,26 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (error) {
-      // Handle error (e.g., redirect to an error page or show a message)
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
-    // Check if the user is an admin
     const user = data.session?.user;
     if (user) {
       const { data: userData, error: userError } = await supabase
-        .from('users') // Assuming you have a 'users' table
-        .select('role') // Assuming 'role' is a field in your users table
+        .from('users') 
+        .select('role') 
         .eq('id', user.id)
         .single();
 
       if (userError || !userData) {
-        // Handle error (e.g., redirect to an error page or show a message)
         return NextResponse.redirect(new URL("/login", request.url));
       }
 
-      // Redirect based on user role
       if (userData.role === 'admin') {
-        return NextResponse.redirect(new URL("/admin", request.url)); // Redirect to admin dashboard
+        return NextResponse.redirect(new URL("/admin", request.url)); 
       }
     }
   }
 
-  // Default redirect if no code or user is found
   return NextResponse.redirect(new URL("/dashboard", request.url));
 }

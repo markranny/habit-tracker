@@ -2,7 +2,6 @@ import { supabase, isSupabaseConfigured } from "./supabase"
 
 export async function signIn(email: string, password: string) {
   if (!isSupabaseConfigured()) {
-    // For demo purposes, return a mock user
     return {
       user: {
         id: "demo-user-id",
@@ -35,7 +34,6 @@ export async function signIn(email: string, password: string) {
 
 export async function signUp(email: string, password: string, firstName: string, lastName: string) {
   if (!isSupabaseConfigured()) {
-    // For demo purposes, return a mock user
     return {
       user: {
         id: "demo-user-id",
@@ -73,17 +71,14 @@ export async function signUp(email: string, password: string, firstName: string,
 }
 
 export async function signOut() {
-  // Clear all localStorage items related to user session
   localStorage.removeItem("firstName")
   localStorage.removeItem("lastName")
   localStorage.removeItem("isAdmin")
   localStorage.removeItem("profileImage")
   localStorage.removeItem("supabase.auth.token")
 
-  // Clear any other app state that might be stored
   sessionStorage.clear()
 
-  // If Supabase is configured, sign out from there too
   if (isSupabaseConfigured()) {
     try {
       const { error } = await supabase.auth.signOut()
@@ -95,7 +90,6 @@ export async function signOut() {
     }
   }
 
-  // Force a page reload to clear any in-memory state
   window.location.href = "/login"
 
   return { error: null }
@@ -103,7 +97,6 @@ export async function signOut() {
 
 export async function getUser() {
   if (!isSupabaseConfigured()) {
-    // For demo purposes, check localStorage
     const firstName = localStorage.getItem("firstName")
     if (firstName) {
       return {

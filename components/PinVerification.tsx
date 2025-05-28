@@ -30,9 +30,8 @@ export default function PinVerification({
   
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
-  // Start countdown timer
   useEffect(() => {
-    setCountdown(60) // 1 minute cooldown
+    setCountdown(60)
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -47,34 +46,29 @@ export default function PinVerification({
     return () => clearInterval(timer)
   }, [])
 
-  // Handle PIN input
   const handlePinChange = (index: number, value: string) => {
-    if (value.length > 1) return // Only allow single digits
+    if (value.length > 1) return
     
     const newPin = [...pin]
     newPin[index] = value
     setPin(newPin)
     setError(null)
 
-    // Auto-focus next input
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus()
     }
 
-    // Auto-verify when all digits are entered
     if (newPin.every(digit => digit !== '') && newPin.join('').length === 6) {
       verifyPin(newPin.join(''))
     }
   }
 
-  // Handle backspace
   const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
     if (e.key === 'Backspace' && !pin[index] && index > 0) {
       inputRefs.current[index - 1]?.focus()
     }
   }
 
-  // Handle paste
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault()
     const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
@@ -86,7 +80,6 @@ export default function PinVerification({
     }
   }
 
-  // Verify PIN
   const verifyPin = async (pinCode: string) => {
     if (pinCode.length !== 6) return
 
@@ -102,7 +95,6 @@ export default function PinVerification({
         setError(result.error || 'Invalid verification code')
         setAttemptsRemaining(result.attemptsRemaining || null)
         
-        // Clear PIN inputs on error
         setPin(['', '', '', '', '', ''])
         inputRefs.current[0]?.focus()
       }
@@ -113,7 +105,6 @@ export default function PinVerification({
     }
   }
 
-  // Resend PIN
   const handleResend = async () => {
     setIsResending(true)
     setError(null)
@@ -127,7 +118,6 @@ export default function PinVerification({
         setPin(['', '', '', '', '', ''])
         inputRefs.current[0]?.focus()
         
-        // Restart countdown
         const timer = setInterval(() => {
           setCountdown((prev) => {
             if (prev <= 1) {
@@ -179,7 +169,6 @@ export default function PinVerification({
       )}
 
       <div className="space-y-6">
-        {/* PIN Input Fields */}
         <div className="flex justify-center gap-2" onPaste={handlePaste}>
           {pin.map((digit, index) => (
             <Input
@@ -197,7 +186,6 @@ export default function PinVerification({
           ))}
         </div>
 
-        {/* Loading indicator */}
         {isVerifying && (
           <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
@@ -205,7 +193,6 @@ export default function PinVerification({
           </div>
         )}
 
-        {/* Resend section */}
         <div className="text-center space-y-3">
           <p className="text-sm text-gray-600">Didn't receive the code?</p>
           
@@ -233,7 +220,6 @@ export default function PinVerification({
           )}
         </div>
 
-        {/* Action buttons */}
         <div className="flex gap-3 pt-4">
           <Button
             variant="outline"

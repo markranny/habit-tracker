@@ -1,7 +1,5 @@
-// app/api/test-email/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 
-// Fixed Gmail SMTP using correct TLS configuration
 async function sendEmailWithGmailSMTP(to: string, subject: string, html: string, text: string) {
   return new Promise((resolve, reject) => {
     try {
@@ -13,7 +11,6 @@ async function sendEmailWithGmailSMTP(to: string, subject: string, html: string,
       let step = 0
       let authenticated = false
       
-      // First connect to port 587 (STARTTLS)
       socket = net.createConnection(587, 'smtp.gmail.com')
       
       socket.on('connect', () => {
@@ -25,15 +22,12 @@ async function sendEmailWithGmailSMTP(to: string, subject: string, html: string,
         console.log('📨 SMTP:', response)
         
         if (response.startsWith('220') && step === 0) {
-          // Server greeting
           socket.write('EHLO localhost\r\n')
           step = 1
         } else if (response.includes('250') && response.includes('STARTTLS') && step === 1) {
-          // Server capabilities received, start TLS
           socket.write('STARTTLS\r\n')
           step = 2
         } else if (response.startsWith('220') && step === 2) {
-          // Ready for TLS, upgrade connection
           console.log('🔐 Starting TLS upgrade...')
           const secureSocket = tls.connect({
             socket: socket,
@@ -45,7 +39,7 @@ async function sendEmailWithGmailSMTP(to: string, subject: string, html: string,
             console.log('✅ TLS connection established')
             secureSocket.write('EHLO localhost\r\n')
             step = 3
-            socket = secureSocket // Replace socket with secure socket
+            socket = secureSocket
           })
           
           secureSocket.on('data', (secureData: Buffer) => {
@@ -53,35 +47,28 @@ async function sendEmailWithGmailSMTP(to: string, subject: string, html: string,
             console.log('🔒 Secure SMTP:', secureResponse)
             
             if (secureResponse.includes('250') && secureResponse.includes('AUTH') && step === 3) {
-              // Ready for authentication
               secureSocket.write('AUTH LOGIN\r\n')
               step = 4
             } else if (secureResponse.startsWith('334') && step === 4) {
-              // Send username
               const username = Buffer.from(process.env.GMAIL_USER || '').toString('base64')
               secureSocket.write(username + '\r\n')
               step = 5
             } else if (secureResponse.startsWith('334') && step === 5) {
-              // Send password
               const password = Buffer.from(process.env.GMAIL_APP_PASSWORD || '').toString('base64')
               secureSocket.write(password + '\r\n')
               step = 6
             } else if (secureResponse.startsWith('235') && step === 6) {
-              // Authentication successful
               console.log('✅ Gmail authentication successful')
               authenticated = true
               secureSocket.write(`MAIL FROM:<${process.env.GMAIL_USER}>\r\n`)
               step = 7
             } else if (secureResponse.startsWith('250') && step === 7) {
-              // MAIL FROM accepted
               secureSocket.write(`RCPT TO:<${to}>\r\n`)
               step = 8
             } else if (secureResponse.startsWith('250') && step === 8) {
-              // RCPT TO accepted
               secureSocket.write('DATA\r\n')
               step = 9
             } else if (secureResponse.startsWith('354') && step === 9) {
-              // Ready for message data
               const message = [
                 `From: "Learning Habit Tracker" <${process.env.GMAIL_USER}>`,
                 `To: ${to}`,
@@ -95,13 +82,11 @@ async function sendEmailWithGmailSMTP(to: string, subject: string, html: string,
               secureSocket.write(message)
               step = 10
             } else if (secureResponse.startsWith('250') && step === 10) {
-              // Message accepted
               console.log('✅ Email sent successfully!')
               secureSocket.write('QUIT\r\n')
               const messageId = 'gmail-smtp-' + Date.now()
               resolve({ messageId })
             } else if (secureResponse.startsWith('535') || secureResponse.startsWith('534')) {
-              // Authentication failed
               reject(new Error('Gmail authentication failed. Please check your App Password and make sure 2-Step Verification is enabled.'))
             }
           })
@@ -112,7 +97,6 @@ async function sendEmailWithGmailSMTP(to: string, subject: string, html: string,
           })
           
         } else if (response.startsWith('535') || response.startsWith('534')) {
-          // Authentication failed
           reject(new Error('Gmail authentication failed. Please check your App Password.'))
         }
       })
@@ -126,7 +110,6 @@ async function sendEmailWithGmailSMTP(to: string, subject: string, html: string,
         console.log('📡 SMTP connection closed')
       })
       
-      // Timeout after 30 seconds
       setTimeout(() => {
         if (!authenticated) {
           socket.destroy()
@@ -140,7 +123,6 @@ async function sendEmailWithGmailSMTP(to: string, subject: string, html: string,
   })
 }
 
-// Test all email services
 async function testEmailServices(testEmail: string) {
   const results = {
     resend: { configured: false, working: false, error: null as string | null },
@@ -151,7 +133,6 @@ async function testEmailServices(testEmail: string) {
   console.log('🔍 Starting enhanced email service tests...')
   console.log(`📧 Testing email delivery to: ${testEmail}`)
 
-  // Test Resend (highest priority - most reliable)
   if (process.env.RESEND_API_KEY) {
     results.resend.configured = true
     try {
@@ -214,7 +195,6 @@ This test email was sent from your Learning Habit Tracker application.`
     }
   }
 
-  // Test SendGrid
   if (process.env.SENDGRID_API_KEY) {
     results.sendgrid.configured = true
     try {
@@ -252,14 +232,12 @@ This test email was sent from your Learning Habit Tracker application.`
     }
   }
 
-  // Test Gmail SMTP (fixed version)
   if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
     results.gmail.configured = true
     
     try {
       console.log('📧 Testing Gmail SMTP (fixed version)...')
       
-      // Validate configuration
       if (process.env.GMAIL_APP_PASSWORD.length !== 16) {
         throw new Error(`Gmail App Password must be exactly 16 characters (current: ${process.env.GMAIL_APP_PASSWORD.length})`)
       }
@@ -309,7 +287,6 @@ This test email was sent from your Learning Habit Tracker application.`
       results.gmail.error = error.message
       console.error('❌ Gmail SMTP failed:', error.message)
       
-      // Provide specific guidance based on error
       if (error.message?.includes('authentication failed') || error.message?.includes('535')) {
         console.error('💡 Fix: Generate a new App Password at https://myaccount.google.com/apppasswords')
       } else if (error.message?.includes('16 characters')) {
@@ -357,7 +334,6 @@ export async function POST(request: NextRequest) {
       recommendations: [] as string[]
     }
 
-    // Generate specific recommendations
     if (!report.summary.hasWorkingService) {
       report.recommendations.push("❌ No working email service found!")
       
@@ -442,7 +418,6 @@ export async function GET() {
 
   const recommendations = []
   
-  // Service-specific recommendations
   if (config.resend.configured) {
     recommendations.push("🚀 Resend is configured - excellent choice for production!")
   } else {
@@ -467,7 +442,6 @@ export async function GET() {
     recommendations.push("💡 SendGrid: Professional email service for high-volume applications")
   }
 
-  // Overall status
   const totalConfigured = Object.values(config).filter(service => service.configured).length
   
   if (totalConfigured === 0) {
